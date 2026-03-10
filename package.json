@@ -1,0 +1,17 @@
+{
+  "name": "rastreamento-api",
+  "version": "2.0.0",
+  "description": "API para atualizar rastreamentos no Airtable com dados dos Correios",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "p-limit": "^6.2.0"
+  }
+}
