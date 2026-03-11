@@ -14,9 +14,7 @@ function parseExpiry(expiraEm) {
 
 function tokenAindaValido() {
   if (!tokenCache.token || !tokenCache.expiresAt) return false;
-
-  const now = Date.now();
-  return now < tokenCache.expiresAt - config.tokenExpirySafetyMs;
+  return Date.now() < tokenCache.expiresAt - config.tokenExpirySafetyMs;
 }
 
 export async function gerarToken() {
@@ -26,11 +24,15 @@ export async function gerarToken() {
 
   const response = await axios.post(
     `${config.correiosBaseUrl}/token/v1/autentica/cartaopostagem`,
-    { numero: config.cartaoPostagem },
+    {
+      numero: config.usuarioMeusCorreios,
+      contrato: config.contratoCorreios,
+      dr: config.correiosDr,
+    },
     {
       auth: {
-        username: config.correiosUser,
-        password: config.correiosPass,
+        username: config.usuarioMeusCorreios,
+        password: config.wsNovaApi,
       },
       headers: {
         "Content-Type": "application/json",
