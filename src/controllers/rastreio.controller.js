@@ -1,9 +1,18 @@
-import pLimit from "p-limit";
 import config from "../config/env.js";
-import { gerarToken, limparCacheToken } from "../services/token.service.js";
-import { consultarRastreio } from "../services/correios.service.js";
+import { gerarToken } from "../services/token.service.js";
+import { consultarRastreiosEmLote } from "../services/correios.service.js";
 import { buscarPendentes, atualizarEmLote } from "../services/airtable.service.js";
 import { mapearStatus } from "../utils/statusMapper.js";
+
+function dividirEmLotes(lista, tamanho) {
+  const lotes = [];
+
+  for (let i = 0; i < lista.length; i += tamanho) {
+    lotes.push(lista.slice(i, i + tamanho));
+  }
+
+  return lotes;
+}
 
 export default async function rastreioController(req, res) {
   if (req.headers["x-secret"] !== config.cronSecret) {
@@ -16,7 +25,7 @@ export default async function rastreioController(req, res) {
     console.log("1. Gerando token dos Correios...");
     const token = await gerarToken();
 
-    console.log("2. Buscando registros no Airtable...");
+    console.log("2. Buscando registros pendentes no Airtable...");
     const registros = await buscarPendentes();
 
     if (!registros.length) {
@@ -30,60 +39,61 @@ export default async function rastreioController(req, res) {
       });
     }
 
-    const limit = pLimit(config.correiosConcurrency);
-    let totalFalhas = 0;
+    const registrosValidos = registros.filter((registro) => registro.fields?.Codigo);
+    const codigos = registrosValidos.map((registro) => registro.fields.Codigo);
 
-    const resultados = await Promise.all(
-      registros.map((registro) =>
-        limit(async () => {
-          try {
-            const codigo = registro.fields?.Codigo;
-            if (!codigo) return null;
-
-            const dados = await consultarRastreio(codigo, token);
-            const ultimoEvento = dados?.objetos?.[0]?.eventos?.[0];
-
-            if (!ultimoEvento) {
-              console.warn(`Sem eventos para o código ${codigo}`);
-              return null;
-            }
-
-            const novoStatus = mapearStatus(ultimoEvento);
-
-            const fields = {
-              Status: novoStatus,
-              "Último Evento": ultimoEvento.descricao || "",
-              "Última Atualização": new Date().toISOString(),
-            };
-
-            if (novoStatus === "Entregue") {
-              fields["Data Entrega"] =
-                ultimoEvento.dtHrCriado || new Date().toISOString();
-            }
-
-            return {
-              id: registro.id,
-              fields,
-            };
-          } catch (error) {
-            totalFalhas += 1;
-
-            const codigo = registro.fields?.Codigo || "sem código";
-            const detalhes = error.response?.data || error.message;
-
-            console.error(`Erro ao processar ${codigo}:`, detalhes);
-
-            if (error.response?.status === 401) {
-              limparCacheToken();
-            }
-
-            return null;
-          }
-        }),
-      ),
+    const mapaRegistros = new Map(
+      registrosValidos.map((registro) => [registro.fields.Codigo, registro]),
     );
 
-    const atualizacoes = resultados.filter(Boolean);
+    const TAMANHO_LOTE = 50;
+    const lotes = dividirEmLotes(codigos, TAMANHO_LOTE);
+
+    let totalFalhas = 0;
+    const atualizacoes = [];
+
+    console.log(`3. Consultando ${codigos.length} rastreios em ${lotes.length} lote(s)...`);
+
+    for (const lote of lotes) {
+      try {
+        const objetos = await consultarRastreiosEmLote(lote, token);
+
+        for (const objeto of objetos) {
+          const codigo = objeto.codObjeto;
+          const registro = mapaRegistros.get(codigo);
+
+          if (!registro) continue;
+
+          const ultimoEvento = objeto?.eventos?.[0];
+          if (!ultimoEvento) {
+            console.warn(`Sem eventos para o código ${codigo}`);
+            continue;
+          }
+
+          const novoStatus = mapearStatus(ultimoEvento);
+
+          const fields = {
+            Status: novoStatus,
+            "Último Evento": ultimoEvento.descricao || "",
+            "Última Atualização": new Date().toISOString(),
+          };
+
+          if (novoStatus === "Entregue") {
+            fields["Data Entrega"] =
+              ultimoEvento.dtHrCriado || new Date().toISOString();
+          }
+
+          atualizacoes.push({
+            id: registro.id,
+            fields,
+          });
+        }
+      } catch (error) {
+        totalFalhas += lote.length;
+        console.error("Erro ao consultar lote:", lote);
+        console.error(error.response?.data || error.message);
+      }
+    }
 
     await atualizarEmLote(atualizacoes);
 
@@ -95,6 +105,8 @@ export default async function rastreioController(req, res) {
         totalEncontrados: registros.length,
         totalAtualizados: atualizacoes.length,
         totalFalhas,
+        totalLotes: lotes.length,
+        tamanhoLote: TAMANHO_LOTE,
         duracaoMs,
       }),
     );
@@ -105,7 +117,8 @@ export default async function rastreioController(req, res) {
       totalEncontrados: registros.length,
       totalAtualizados: atualizacoes.length,
       totalFalhas,
-      concorrencia: config.correiosConcurrency,
+      totalLotes: lotes.length,
+      tamanhoLote: TAMANHO_LOTE,
       duracaoMs,
     });
   } catch (error) {
