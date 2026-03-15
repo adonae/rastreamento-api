@@ -78,6 +78,18 @@ export default async function rastreioController(req, res) {
             "Última Atualização": new Date().toISOString(),
           };
 
+          // Salva Data Postagem quando o status for Postado
+          // e o campo ainda não existir no Airtable
+          if (
+            novoStatus === "Postado" &&
+            !registro.fields?.["Data Postagem"]
+          ) {
+            fields["Data Postagem"] =
+              ultimoEvento.dtHrCriado?.split("T")[0] ||
+              new Date().toISOString().split("T")[0];
+          }
+
+          // Salva Data Entrega quando o status for Entregue
           if (novoStatus === "Entregue") {
             fields["Data Entrega"] =
               ultimoEvento.dtHrCriado || new Date().toISOString();
