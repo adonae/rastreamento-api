@@ -11,13 +11,23 @@ const airtableApi = axios.create({
 });
 
 export async function buscarPendentes() {
-  const response = await airtableApi.get("", {
-    params: {
-      filterByFormula: "AND(Status!='Entregue', Codigo!='')",
-    },
-  });
+  let todosRegistros = [];
+  let offset;
 
-  return response.data.records || [];
+  do {
+    const response = await airtableApi.get("", {
+      params: {
+        filterByFormula: "AND(Status!='Entregue', Codigo!='')",
+        offset,
+      },
+    });
+
+    const registros = response.data.records || [];
+    todosRegistros = todosRegistros.concat(registros);
+    offset = response.data.offset;
+  } while (offset);
+
+  return todosRegistros;
 }
 
 export async function atualizarEmLote(registros) {
