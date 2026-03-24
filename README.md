@@ -114,6 +114,7 @@ A aplicacao considera principalmente estes campos na tabela:
 Os registros buscados seguem a regra:
 
 - `Status != 'Entregue'`
+- `Status != 'Devolvido'`
 - `Codigo != ''`
 
 ## Como executar

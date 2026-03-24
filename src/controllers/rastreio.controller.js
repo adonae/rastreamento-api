@@ -1,3 +1,4 @@
+import pLimit from "p-limit";
 import config from "../config/env.js";
 import { gerarToken } from "../services/token.service.js";
 import { consultarRastreiosEmLote } from "../services/correios.service.js";
@@ -12,6 +13,31 @@ function dividirEmLotes(lista, tamanho) {
   }
 
   return lotes;
+}
+
+function montarAtualizacao(registro, ultimoEvento) {
+  const novoStatus = mapearStatus(ultimoEvento);
+  const fields = {
+    Status: novoStatus,
+    "Último Evento": ultimoEvento.descricao || "",
+    "Última Atualização": new Date().toISOString(),
+  };
+
+  if (novoStatus === "Postado" && !registro.fields?.["Data Postagem"]) {
+    fields["Data Postagem"] =
+      ultimoEvento.dtHrCriado?.split("T")[0] ||
+      new Date().toISOString().split("T")[0];
+  }
+
+  if (novoStatus === "Entregue") {
+    fields["Data Entrega"] =
+      ultimoEvento.dtHrCriado || new Date().toISOString();
+  }
+
+  return {
+    id: registro.id,
+    fields,
+  };
 }
 
 export default async function rastreioController(req, res) {
@@ -41,71 +67,62 @@ export default async function rastreioController(req, res) {
 
     const registrosValidos = registros.filter((registro) => registro.fields?.Codigo);
     const codigos = registrosValidos.map((registro) => registro.fields.Codigo);
-
     const mapaRegistros = new Map(
       registrosValidos.map((registro) => [registro.fields.Codigo, registro]),
     );
 
     const TAMANHO_LOTE = 50;
     const lotes = dividirEmLotes(codigos, TAMANHO_LOTE);
+    const limite = pLimit(config.correiosConcurrency);
 
-    let totalFalhas = 0;
-    const atualizacoes = [];
+    console.log(
+      `3. Consultando ${codigos.length} rastreios em ${lotes.length} lote(s) com concorrencia ${config.correiosConcurrency}...`,
+    );
 
-    console.log(`3. Consultando ${codigos.length} rastreios em ${lotes.length} lote(s)...`);
+    const resultados = await Promise.all(
+      lotes.map((lote) =>
+        limite(async () => {
+          try {
+            const objetos = await consultarRastreiosEmLote(lote, token);
+            const atualizacoes = [];
 
-    for (const lote of lotes) {
-      try {
-        const objetos = await consultarRastreiosEmLote(lote, token);
+            for (const objeto of objetos) {
+              const codigo = objeto.codObjeto;
+              const registro = mapaRegistros.get(codigo);
 
-        for (const objeto of objetos) {
-          const codigo = objeto.codObjeto;
-          const registro = mapaRegistros.get(codigo);
+              if (!registro) continue;
 
-          if (!registro) continue;
+              const ultimoEvento = objeto?.eventos?.[0];
+              if (!ultimoEvento) {
+                console.warn(`Sem eventos para o código ${codigo}`);
+                continue;
+              }
 
-          const ultimoEvento = objeto?.eventos?.[0];
-          if (!ultimoEvento) {
-            console.warn(`Sem eventos para o código ${codigo}`);
-            continue;
+              atualizacoes.push(montarAtualizacao(registro, ultimoEvento));
+            }
+
+            return {
+              atualizacoes,
+              falhas: 0,
+            };
+          } catch (error) {
+            console.error("Erro ao consultar lote:", lote);
+            console.error(error.response?.data || error.message);
+
+            return {
+              atualizacoes: [],
+              falhas: lote.length,
+            };
           }
+        }),
+      ),
+    );
 
-          const novoStatus = mapearStatus(ultimoEvento);
-
-          const fields = {
-            Status: novoStatus,
-            "Último Evento": ultimoEvento.descricao || "",
-            "Última Atualização": new Date().toISOString(),
-          };
-
-          // Salva Data Postagem quando o status for Postado
-          // e o campo ainda não existir no Airtable
-          if (
-            novoStatus === "Postado" &&
-            !registro.fields?.["Data Postagem"]
-          ) {
-            fields["Data Postagem"] =
-              ultimoEvento.dtHrCriado?.split("T")[0] ||
-              new Date().toISOString().split("T")[0];
-          }
-
-          // Salva Data Entrega quando o status for Entregue
-          if (novoStatus === "Entregue") {
-            fields["Data Entrega"] =
-              ultimoEvento.dtHrCriado || new Date().toISOString();
-          }
-
-          atualizacoes.push({
-            id: registro.id,
-            fields,
-          });
-        }
-      } catch (error) {
-        totalFalhas += lote.length;
-        console.error("Erro ao consultar lote:", lote);
-        console.error(error.response?.data || error.message);
-      }
-    }
+    const atualizacoes = resultados.flatMap((resultado) => resultado.atualizacoes);
+    const totalFalhas = resultados.reduce(
+      (acumulado, resultado) => acumulado + resultado.falhas,
+      0,
+    );
 
     await atualizarEmLote(atualizacoes);
 
@@ -119,6 +136,7 @@ export default async function rastreioController(req, res) {
         totalFalhas,
         totalLotes: lotes.length,
         tamanhoLote: TAMANHO_LOTE,
+        concorrencia: config.correiosConcurrency,
         duracaoMs,
       }),
     );
@@ -131,6 +149,7 @@ export default async function rastreioController(req, res) {
       totalFalhas,
       totalLotes: lotes.length,
       tamanhoLote: TAMANHO_LOTE,
+      concorrencia: config.correiosConcurrency,
       duracaoMs,
     });
   } catch (error) {

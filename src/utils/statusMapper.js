@@ -1,108 +1,141 @@
+const normalizarTexto = (texto) =>
+  (texto || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const contemAlgum = (texto, termos) =>
+  termos.some((termo) => texto.includes(termo));
+
+const TERMOS_RETIRADA = [
+  "aguardando retirada",
+  "disponivel para retirada",
+  "encaminhado para retirada",
+  "aguarda retirada",
+  "retirada em unidade",
+  "retirada",
+  "retirar",
+  "endereco indicado",
+];
+
+const TERMOS_TRIBUTADO = [
+  "tributado",
+  "aguardando pagamento",
+  "pagamento do despacho postal",
+  "fiscalizacao aduaneira",
+  "taxa",
+  "objeto sujeito a tributacao",
+];
+
+const TERMOS_TENTATIVA = [
+  "tentativa de entrega",
+  "destinatario ausente",
+  "entrega nao realizada",
+  "carteiro nao atendido",
+  "logradouro com numeracao irregular",
+  "mudou-se",
+  "recusado",
+  "cliente ausente",
+  "nao procurado",
+];
+
+const TERMOS_DEVOLVIDO = [
+  "devolvido ao remetente",
+  "objeto devolvido",
+  "devolucao autorizada",
+  "em devolucao",
+  "retorno ao remetente",
+  "entregue ao remetente",
+];
+
+const TERMOS_ENDERECAMENTO = [
+  "inconsistencias no enderecamento do objeto",
+  "inconsistencia no enderecamento do objeto",
+  "inconsistencia no endereco",
+  "endereco insuficiente",
+  "endereco incorreto",
+  "numero inexistente",
+  "enderecamento do objeto",
+];
+
+const TERMOS_ENTREGUE = [
+  "objeto entregue ao destinatario",
+  "objeto entregue com sucesso",
+  "entregue ao destinatario",
+];
+
+const TERMOS_SAIU_PARA_ENTREGA = [
+  "saiu para entrega",
+  "rota de entrega",
+  "em rota de entrega",
+];
+
+const TERMOS_POSTADO = [
+  "objeto postado",
+  "postado",
+];
+
+const TERMOS_TRANSITO = [
+  "transito",
+  "transferencia",
+  "encaminhado",
+  "em rota",
+  "objeto em transferencia",
+  "objeto encaminhado",
+];
+
 export function mapearStatus(evento) {
   if (!evento) return "Desconhecido";
 
   const codigo = (evento.codigo || "").toUpperCase().trim();
-  const descricao = (evento.descricao || "").toLowerCase().trim();
-  const detalhe = (evento.detalhe || "").toLowerCase().trim();
+  const descricao = normalizarTexto(evento.descricao);
+  const detalhe = normalizarTexto(evento.detalhe);
   const textoCompleto = `${descricao} ${detalhe}`.trim();
 
-  // 1. Prioridades mais específicas primeiro
-
-  // Retirada em agência / ponto indicado
-  if (
-    textoCompleto.includes("retirada") ||
-    textoCompleto.includes("retirar") ||
-    textoCompleto.includes("aguardando retirada") ||
-    textoCompleto.includes("disponível para retirada") ||
-    textoCompleto.includes("encaminhado para retirada") ||
-    textoCompleto.includes("endereço indicado") ||
-    textoCompleto.includes("aguarda retirada")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_RETIRADA)) {
     return "Retirada";
   }
 
-  // Tributação / pagamento pendente
-  if (
-    textoCompleto.includes("tributado") ||
-    textoCompleto.includes("aguardando pagamento") ||
-    textoCompleto.includes("pagamento do despacho postal") ||
-    textoCompleto.includes("fiscalização aduaneira") ||
-    textoCompleto.includes("taxa") ||
-    textoCompleto.includes("objeto sujeito à tributação")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_TRIBUTADO)) {
     return "Tributado";
   }
 
-  // Tentativa de entrega
-  if (
-    textoCompleto.includes("tentativa de entrega") ||
-    textoCompleto.includes("destinatário ausente") ||
-    textoCompleto.includes("entrega não realizada") ||
-    textoCompleto.includes("carteiro não atendido") ||
-    textoCompleto.includes("logradouro com numeração irregular") ||
-    textoCompleto.includes("mudou-se") ||
-    textoCompleto.includes("recusado") ||
-    textoCompleto.includes("cliente ausente")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_TENTATIVA)) {
     return "Tentativa de entrega";
   }
 
-  // Devolução / retorno
-  if (
-    textoCompleto.includes("devolvido ao remetente") ||
-    textoCompleto.includes("objeto devolvido") ||
-    textoCompleto.includes("devolução autorizada") ||
-    textoCompleto.includes("em devolução") ||
-    textoCompleto.includes("retorno ao remetente")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_DEVOLVIDO)) {
     return "Devolvido";
   }
 
-  // Entregue
-  if (
-    codigo === "BDE" ||
-    textoCompleto.includes("objeto entregue") ||
-    textoCompleto.includes("entregue ao destinatário") ||
-    textoCompleto.includes("entregue")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_ENDERECAMENTO)) {
+    return "Desconhecido";
+  }
+
+  if (codigo === "BDE" || contemAlgum(textoCompleto, TERMOS_ENTREGUE)) {
     return "Entregue";
   }
 
-  // Saiu para entrega
   if (
     codigo === "OEC" ||
-    textoCompleto.includes("saiu para entrega") ||
-    textoCompleto.includes("rota de entrega") ||
-    textoCompleto.includes("em rota de entrega")
+    contemAlgum(textoCompleto, TERMOS_SAIU_PARA_ENTREGA)
   ) {
     return "Saiu para entrega";
   }
 
-  // Postado
-  if (
-    codigo === "PO" ||
-    textoCompleto.includes("objeto postado") ||
-    textoCompleto.includes("postado")
-  ) {
+  if (codigo === "PO" || contemAlgum(textoCompleto, TERMOS_POSTADO)) {
     return "Postado";
   }
 
-  // 2. Mapeamento por código conhecido
   switch (codigo) {
     case "RO":
       return "Em trânsito";
+    default:
+      break;
   }
 
-  // 3. Fallback por descrição para trânsito
-  if (
-    textoCompleto.includes("trânsito") ||
-    textoCompleto.includes("transferência") ||
-    textoCompleto.includes("encaminhado") ||
-    textoCompleto.includes("em rota") ||
-    textoCompleto.includes("em trânsito") ||
-    textoCompleto.includes("objeto em transferência") ||
-    textoCompleto.includes("objeto encaminhado")
-  ) {
+  if (contemAlgum(textoCompleto, TERMOS_TRANSITO)) {
     return "Em trânsito";
   }
 
