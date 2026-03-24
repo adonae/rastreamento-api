@@ -8,19 +8,20 @@ API em Node.js para consultar rastreamentos dos Correios e atualizar registros p
 
 ## Destaques
 
-- Integração com a API dos Correios
-- Atualização automática de registros no Airtable
+- Integracao com a API dos Correios
+- Atualizacao automatica de registros no Airtable
 - Processamento em lote para reduzir chamadas
-- Endpoint protegido por segredo para uso com cron ou automações
+- Endpoint protegido por segredo para uso com cron ou automacoes
+- Suporte a Docker, Docker Compose e healthcheck
 
 ## Sobre o projeto
 
-Este projeto foi criado para centralizar a atualização de objetos rastreados. O fluxo principal da aplicação é:
+O fluxo principal da aplicacao e:
 
-1. Gerar um token de autenticação na API dos Correios.
-2. Buscar no Airtable os registros que ainda não foram entregues.
-3. Consultar os códigos de rastreio em lote.
-4. Mapear o último evento do objeto para um status legível.
+1. Gerar um token de autenticacao na API dos Correios.
+2. Buscar no Airtable os registros que ainda nao foram entregues.
+3. Consultar os codigos de rastreio em lote.
+4. Mapear o ultimo evento do objeto para um status legivel.
 5. Atualizar os campos correspondentes no Airtable.
 
 ## Tecnologias utilizadas
@@ -31,6 +32,7 @@ Este projeto foi criado para centralizar a atualização de objetos rastreados. 
 - Dotenv
 - Airtable API
 - API dos Correios
+- Docker
 
 ## Estrutura principal
 
@@ -52,10 +54,11 @@ src/
 ## Requisitos
 
 - Node.js 18 ou superior
-- Conta e credenciais válidas da API dos Correios
+- Docker Desktop ou Docker Engine, se for usar containers
+- Conta e credenciais validas da API dos Correios
 - Base no Airtable com os campos esperados
 
-## Instalação
+## Instalacao
 
 ```bash
 npm install
@@ -67,7 +70,13 @@ Depois, gere seu arquivo de ambiente:
 cp .env.example .env
 ```
 
-## Variáveis de ambiente
+No PowerShell, voce tambem pode usar:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+## Variaveis de ambiente
 
 Use o arquivo `.env.example` como base para criar o seu `.env`:
 
@@ -84,7 +93,7 @@ AIRTABLE_API_KEY=sua_chave_airtable
 AIRTABLE_BASE_ID=seu_base_id
 AIRTABLE_TABLE=nome_da_tabela
 
-CRON_SECRET=seu_segredo
+CRON_SECRET=defina_um_segredo_forte
 
 REQUEST_TIMEOUT_MS=20000
 CORREIOS_CONCURRENCY=10
@@ -93,12 +102,12 @@ TOKEN_EXPIRY_SAFETY_MS=60000
 
 ## Campos esperados no Airtable
 
-A aplicação considera principalmente estes campos na tabela:
+A aplicacao considera principalmente estes campos na tabela:
 
 - `Codigo`
 - `Status`
-- `Último Evento`
-- `Última Atualização`
+- `Ultimo Evento`
+- `Ultima Atualizacao`
 - `Data Postagem`
 - `Data Entrega`
 
@@ -121,13 +130,55 @@ Ambiente normal:
 npm start
 ```
 
-Por padrão, a API sobe na porta `3000`, ou na porta definida em `PORT`.
+Por padrao, a API sobe na porta `3000`, ou na porta definida em `PORT`.
+
+## Como executar com Docker
+
+### Build manual da imagem
+
+```bash
+docker build -t rastreamento-api .
+```
+
+O arquivo `Dockerfile` possui `HEALTHCHECK` para monitorar o endpoint `/health`.
+
+### Rodando com `docker run`
+
+```bash
+docker run --env-file .env -p 3000:3000 --name rastreamento-api rastreamento-api
+```
+
+### Rodando com Docker Compose
+
+```bash
+docker compose up --build -d
+```
+
+Para conferir se o container ficou saudavel:
+
+```bash
+docker compose ps
+```
+
+O servico deve aparecer com status `healthy` depois que o endpoint `/health` responder com sucesso.
+
+Para acompanhar os logs:
+
+```bash
+docker compose logs -f
+```
+
+Para parar o container:
+
+```bash
+docker compose down
+```
 
 ## Endpoints
 
 ### `GET /health`
 
-Endpoint de verificação de saúde da aplicação.
+Endpoint de verificacao de saude da aplicacao.
 
 Exemplo de resposta:
 
@@ -141,7 +192,7 @@ Exemplo de resposta:
 
 ### `POST /atualizar-rastreios`
 
-Executa o processo completo de atualização dos rastreamentos.
+Executa o processo completo de atualizacao dos rastreamentos.
 
 Esse endpoint exige o header:
 
@@ -174,10 +225,10 @@ Exemplo de resposta:
 
 ## Mapeamento de status
 
-Os eventos retornados pelos Correios são convertidos para status mais simples no Airtable, como:
+Os eventos retornados pelos Correios sao convertidos para status mais simples no Airtable, como:
 
 - `Postado`
-- `Em trânsito`
+- `Em transito`
 - `Saiu para entrega`
 - `Entregue`
 - `Tentativa de entrega`
@@ -188,49 +239,83 @@ Os eventos retornados pelos Correios são convertidos para status mais simples n
 
 ## Funcionamento em lote
 
-- Os códigos são consultados em lotes de até `50` objetos por vez.
-- As atualizações no Airtable são enviadas em blocos de até `10` registros por requisição.
+- Os codigos sao consultados em lotes de ate `50` objetos por vez.
+- As atualizacoes no Airtable sao enviadas em blocos de ate `10` registros por requisicao.
 
-## Segurança
+## Seguranca
 
-Para evitar execuções indevidas:
+Para evitar execucoes indevidas:
 
 - o endpoint `POST /atualizar-rastreios` exige o header `x-secret`
 - o valor enviado deve ser igual ao `CRON_SECRET` configurado no ambiente
 
-## Sugestão de uso com automação
+## Sugestao de uso com automacao
 
-Você pode acionar essa API com:
+Voce pode acionar essa API com:
 
 - GitHub Actions
 - cron job no servidor
-- plataformas como Railway, Render ou VPS própria
+- plataformas como Railway, Render ou VPS propria
 
-Um exemplo comum é agendar chamadas periódicas para `POST /atualizar-rastreios`.
+Um exemplo comum e agendar chamadas periodicas para `POST /atualizar-rastreios`.
 
 ## Deploy
 
-Esta API pode ser publicada em qualquer ambiente Node.js que permita configurar variáveis de ambiente.
+Esta API pode ser publicada em qualquer ambiente Node.js ou Docker que permita configurar variaveis de ambiente.
 
-Opções comuns:
+Opcoes comuns:
 
 - Railway
 - Render
 - VPS com PM2
 - Docker
-- GitHub Actions chamando uma instância já publicada
+- GitHub Actions chamando uma instancia ja publicada
 
 Passos gerais de deploy:
 
-1. Configure todas as variáveis do `.env.example` no provedor.
-2. Defina o comando de inicialização como `npm start`.
-3. Garanta que a porta da aplicação seja lida por `PORT`.
-4. Proteja o endpoint de execução com um `CRON_SECRET` forte.
-5. Aponte sua automação para `POST /atualizar-rastreios`.
+1. Configure todas as variaveis do `.env.example` no provedor.
+2. Defina o comando de inicializacao como `npm start` ou use o `Dockerfile`.
+3. Garanta que a porta da aplicacao seja lida por `PORT`.
+4. Proteja o endpoint de execucao com um `CRON_SECRET` forte.
+5. Aponte sua automacao para `POST /atualizar-rastreios`.
 
-### Exemplo de automação com GitHub Actions
+### Deploy com Railway usando Docker
 
-Se a API já estiver publicada, você pode criar um workflow para disparar a atualização periodicamente:
+1. Crie um novo projeto no Railway a partir deste repositorio.
+2. Garanta que o deploy use o `Dockerfile` da raiz do projeto.
+3. Configure no Railway todas as variaveis presentes no `.env.example`.
+4. Mantenha a porta dinamica lida por `PORT`, sem fixar outra porta no codigo.
+5. Apos o deploy, valide `GET /health` e depois integre sua automacao ao endpoint `POST /atualizar-rastreios`.
+
+### Deploy com Render usando Docker
+
+1. Crie um novo `Web Service` no Render conectado a este repositorio.
+2. Escolha a opcao de deploy via `Docker`.
+3. Informe as variaveis de ambiente do `.env.example` no painel do servico.
+4. Deixe o Render expor a porta informada por `PORT`.
+5. Depois do primeiro deploy, confira o endpoint `/health` e os logs da aplicacao.
+
+### Publicacao automatica de imagem com GitHub Actions
+
+O workflow `.github/workflows/docker-image.yml` faz build automatico da imagem e publica no GitHub Container Registry (`ghcr.io`) quando ha push na branch `main`, tags `v*` ou execucao manual.
+
+Exemplo de imagem publicada:
+
+```bash
+ghcr.io/SEU_USUARIO/rastreamento-api:latest
+```
+
+Para usar esse workflow:
+
+1. Publique o repositorio no GitHub.
+2. Garanta que a branch principal seja `main` ou ajuste o workflow.
+3. Ative permissoes de pacote para o repositorio no GitHub, se necessario.
+4. Faca push para `main` e confira a aba `Actions`.
+5. Depois, consulte a imagem publicada em `Packages` no GitHub.
+
+### Exemplo de automacao com GitHub Actions
+
+Se a API ja estiver publicada, voce pode criar um workflow para disparar a atualizacao periodicamente:
 
 ```yaml
 name: Atualizar rastreios
@@ -256,20 +341,20 @@ Secrets sugeridos no GitHub:
 - `RASTREAMENTO_API_URL`
 - `CRON_SECRET`
 
-## Scripts disponíveis
+## Scripts disponiveis
 
 ```bash
 npm start
 npm run dev
 ```
 
-## Observações
+## Observacoes
 
-- O projeto utiliza cache temporário do token dos Correios para evitar autenticações desnecessárias.
-- Em caso de erro, a API retorna informações úteis para depuração, como status HTTP, URL chamada e detalhes da resposta.
-- Atualmente o projeto não possui testes automatizados configurados.
+- O projeto utiliza cache temporario do token dos Correios para evitar autenticacoes desnecessarias.
+- Em caso de erro, a API retorna informacoes uteis para depuracao, como status HTTP, URL chamada e detalhes da resposta.
+- Atualmente o projeto nao possui testes automatizados configurados.
 - Mantenha o arquivo `.env` fora do versionamento e publique apenas o `.env.example`.
 
-## Licença
+## Licenca
 
-Este projeto está licenciado sob a licença MIT. Consulte o arquivo `LICENSE` para mais detalhes.
+Este projeto esta licenciado sob a licenca MIT. Consulte o arquivo `LICENSE` para mais detalhes.
