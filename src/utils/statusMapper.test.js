@@ -42,6 +42,17 @@ test("mantem retirada quando evento indica coleta em unidade", () => {
   assert.equal(status, "Retirada");
 });
 
+test("nao marca evento com codigo BDE como Entregue sem texto de entrega", () => {
+  const status = mapearStatus({
+    codigo: "BDE",
+    descricao: "Objeto não entregue - endereço incorreto",
+    detalhe:
+      "O número indicado para entrega é inexistente. Aguarde a unidade para retirada",
+  });
+
+  assert.equal(status, "Retirada");
+});
+
 test("mantem transito para objeto encaminhado", () => {
   const status = mapearStatus({
     descricao: "Objeto encaminhado de Unidade de Tratamento",

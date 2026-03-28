@@ -57,6 +57,7 @@ const TERMOS_ENDERECAMENTO = [
   "endereco incorreto",
   "numero inexistente",
   "enderecamento do objeto",
+  "objeto nao entregue",
 ];
 
 const TERMOS_ENTREGUE = [
@@ -113,7 +114,7 @@ export function mapearStatus(evento) {
     return "Desconhecido";
   }
 
-  if (codigo === "BDE" || contemAlgum(textoCompleto, TERMOS_ENTREGUE)) {
+  if (contemAlgum(textoCompleto, TERMOS_ENTREGUE)) {
     return "Entregue";
   }
 
