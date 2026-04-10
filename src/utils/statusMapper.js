@@ -40,12 +40,16 @@ const TERMOS_TENTATIVA = [
   "nao procurado",
 ];
 
-const TERMOS_DEVOLVIDO = [
-  "devolvido ao remetente",
+const TERMOS_DEVOLUCAO_EM_ANDAMENTO = [
   "objeto devolvido",
   "devolucao autorizada",
   "em devolucao",
+  "sera devolvido ao remetente",
   "retorno ao remetente",
+];
+
+const TERMOS_DEVOLVIDO = [
+  "devolvido ao remetente",
   "entregue ao remetente",
 ];
 
@@ -104,6 +108,10 @@ export function mapearStatus(evento) {
 
   if (contemAlgum(textoCompleto, TERMOS_TENTATIVA)) {
     return "Tentativa de entrega";
+  }
+
+  if (contemAlgum(textoCompleto, TERMOS_DEVOLUCAO_EM_ANDAMENTO)) {
+    return "Em trânsito";
   }
 
   if (contemAlgum(textoCompleto, TERMOS_DEVOLVIDO)) {

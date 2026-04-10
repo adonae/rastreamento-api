@@ -13,8 +13,7 @@ const airtableApi = axios.create({
 export async function buscarPendentes() {
   let todosRegistros = [];
   let offset;
-  const filterByFormula =
-    "AND(Status!='Entregue', Status!='Devolvido', Codigo!='')";
+  const filterByFormula = "AND(Status!='Entregue', Codigo!='')";
 
   do {
     const response = await airtableApi.get("", {
