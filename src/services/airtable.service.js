@@ -34,12 +34,19 @@ export async function buscarPendentes() {
 export async function atualizarEmLote(registros) {
   if (!Array.isArray(registros) || registros.length === 0) return;
 
+  const vistos = new Map();
+  for (const registro of registros) {
+    vistos.set(registro.id, registro);
+  }
+  const unicos = [...vistos.values()];
+
   const chunks = [];
-  for (let i = 0; i < registros.length; i += 10) {
-    chunks.push(registros.slice(i, i + 10));
+  for (let i = 0; i < unicos.length; i += 10) {
+    chunks.push(unicos.slice(i, i + 10));
   }
 
   for (const chunk of chunks) {
     await airtableApi.patch("", { records: chunk });
   }
 }
+
