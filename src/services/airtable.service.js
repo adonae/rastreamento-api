@@ -31,6 +31,43 @@ export async function buscarPendentes() {
   return todosRegistros;
 }
 
+export async function buscarCodigosExistentes() {
+  const codigos = new Set();
+  let offset;
+
+  do {
+    const response = await airtableApi.get("", {
+      params: {
+        "fields[]": "Codigo",
+        filterByFormula: "Codigo!=''",
+        offset,
+      },
+    });
+
+    for (const record of response.data.records || []) {
+      if (record.fields.Codigo) {
+        codigos.add(record.fields.Codigo);
+      }
+    }
+    offset = response.data.offset;
+  } while (offset);
+
+  return codigos;
+}
+
+export async function criarRegistros(registros) {
+  if (!Array.isArray(registros) || registros.length === 0) return;
+
+  const chunks = [];
+  for (let i = 0; i < registros.length; i += 10) {
+    chunks.push(registros.slice(i, i + 10));
+  }
+
+  for (const chunk of chunks) {
+    await airtableApi.post("", { records: chunk });
+  }
+}
+
 export async function atualizarEmLote(registros) {
   if (!Array.isArray(registros) || registros.length === 0) return;
 

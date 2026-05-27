@@ -42,6 +42,11 @@ const config = {
 
   cronSecret: lerTextoObrigatorio("CRON_SECRET"),
 
+  dbHost: lerTextoObrigatorio("DB_HOST"),
+  dbUser: lerTextoObrigatorio("DB_USER"),
+  dbPass: lerTextoObrigatorio("DB_PASS"),
+  dbName: lerTextoObrigatorio("DB_NAME"),
+
   requestTimeoutMs: lerNumero("REQUEST_TIMEOUT_MS", 20000),
   correiosConcurrency: Math.max(1, lerNumero("CORREIOS_CONCURRENCY", 10)),
   tokenExpirySafetyMs: Math.max(0, lerNumero("TOKEN_EXPIRY_SAFETY_MS", 60000)),
