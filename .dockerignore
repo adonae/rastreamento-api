@@ -1,6 +1,5 @@
-node_modules
-npm-debug.log
 .env
-.git
+.env.*
+node_modules/
+.git/
 .gitignore
-Dockerfile
